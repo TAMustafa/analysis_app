@@ -1,7 +1,3 @@
-Here's a concise README for your GitHub repository:
-
----
-
 # Enhanced Data Analysis App
 
 This Streamlit application provides comprehensive data analysis functionalities. Users can upload CSV or Excel files to explore various aspects of their data through interactive visualizations and statistical models.
@@ -45,7 +41,3 @@ Upload your data file and select the analysis tasks from the sidebar.
 ## Contributing
 
 Contributions are welcome. Please open an issue to discuss your idea or submit a pull request.
-
----
-
-Feel free to adjust the content as necessary to fit your project's needs or personal style!
