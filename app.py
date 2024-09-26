@@ -109,6 +109,7 @@ def show_scatter_plot_matrix(df):
         fig = sns.pairplot(numeric_df, height=2.5)
         st.pyplot(fig)
 
+
 def show_box_plot(df):
     st.write("This feature creates a box plot to visualize the distribution of a numeric variable across different categories, helping you identify differences and outliers.")
     numeric_columns = df.select_dtypes(include=['number']).columns
@@ -118,11 +119,81 @@ def show_box_plot(df):
     y_axis = st.selectbox("Select numeric column for Y-axis", numeric_columns)
     
     with st.spinner('Generating box plot...'):
-        fig, ax = plt.subplots(figsize=(10, 6))
+        # Determine the number of categories
+        categories = df[x_axis].nunique()
+        
+        # Adjust figure size based on the number of categories
+        fig_width = min(max(10, categories * 0.5), 20)  # Width between 10 and 20
+        fig_height = 8
+        
+        fig, ax = plt.subplots(figsize=(fig_width, fig_height))
         sns.boxplot(x=x_axis, y=y_axis, data=df, ax=ax)
-        plt.xticks(rotation=45, ha='right')
+        
+        # Rotate labels and adjust their alignment
+        if categories > 10:
+            plt.xticks(rotation=90, ha='center')
+        elif categories > 5:
+            plt.xticks(rotation=45, ha='right')
+        
+        # Adjust layout and display
         plt.tight_layout()
         st.pyplot(fig)
+        
+        # Add summary statistics
+        st.write("Summary statistics for each group:")
+        summary = df.groupby(x_axis)[y_axis].describe()
+        st.write(summary)
+        
+        # Perform ANOVA
+        groups = [group for name, group in df.groupby(x_axis)[y_axis]]
+        f_statistic, p_value = stats.f_oneway(*groups)
+        st.write(f"One-way ANOVA results:")
+        st.write(f"F-statistic: {f_statistic:.4f}")
+        st.write(f"p-value: {p_value:.4f}")
+
+
+def create_pivot_table(df):
+    st.write("This feature creates a pivot table, allowing you to summarize and aggregate data based on multiple dimensions.")
+    categorical_columns = df.select_dtypes(include=['object', 'category']).columns
+    numeric_columns = df.select_dtypes(include=['number']).columns
+    
+    index = st.selectbox("Select index column", categorical_columns)
+    columns = st.selectbox("Select column for pivot", [col for col in categorical_columns if col != index])
+    values = st.selectbox("Select values column", numeric_columns)
+    
+    display_option = st.selectbox("Select display option", 
+                                  ["Table Only", "Table and Bar Chart", "Table and Line Chart", "Table and Heatmap"])
+    
+    with st.spinner('Creating pivot table...'):
+        pivot_table = df.pivot_table(index=index, columns=columns, values=values, aggfunc='mean', fill_value=0, observed=True)
+        st.write(pivot_table)
+        
+        if display_option != "Table Only":
+            # Determine the number of categories
+            index_categories = pivot_table.index.nunique()
+            column_categories = pivot_table.columns.nunique()
+            
+            # Adjust figure size based on the number of categories
+            fig_width = min(max(10, column_categories * 0.5), 20)  # Width between 10 and 20
+            fig_height = min(max(6, index_categories * 0.4), 15)   # Height between 6 and 15
+            
+            fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+            
+            if display_option == "Table and Bar Chart":
+                pivot_table.plot(kind='bar', ax=ax)
+            elif display_option == "Table and Line Chart":
+                pivot_table.plot(kind='line', ax=ax)
+            elif display_option == "Table and Heatmap":
+                sns.heatmap(pivot_table, annot=True, cmap='YlGnBu', fmt='.2f', ax=ax)
+            
+            # Rotate labels and adjust their alignment
+            if column_categories > 10:
+                plt.xticks(rotation=90, ha='center')
+            elif column_categories > 5:
+                plt.xticks(rotation=45, ha='right')
+            
+            plt.tight_layout()
+            st.pyplot(fig)
 
 def perform_linear_regression(df):
     st.write("This feature performs linear regression analysis, allowing you to model the relationship between a target variable and one or more predictor variables.")
@@ -154,7 +225,7 @@ def perform_linear_regression(df):
         st.write(f"R-squared Score: {r2:.2f}")
         
         if len(features) == 1:
-            fig, ax = plt.subplots()
+            fig, ax = plt.subplots(figsize=(10, 6))
             ax.scatter(X_test, y_test, color='blue', alpha=0.5, label='Actual')
             ax.plot(X_test, y_pred, color='red', linewidth=2, label='Predicted')
             ax.set_xlabel(features[0])
@@ -162,166 +233,21 @@ def perform_linear_regression(df):
             ax.set_title(f'Linear Regression: {target} vs {features[0]}')
             ax.legend()
             st.pyplot(fig)
-
-def create_pivot_table(df):
-    st.write("This feature creates a pivot table, allowing you to summarize and aggregate data based on multiple dimensions.")
-    categorical_columns = df.select_dtypes(include=['object', 'category']).columns
-    numeric_columns = df.select_dtypes(include=['number']).columns
-    
-    index = st.selectbox("Select index column", categorical_columns)
-    columns = st.selectbox("Select column for pivot", [col for col in categorical_columns if col != index])
-    values = st.selectbox("Select values column", numeric_columns)
-    
-    display_option = st.selectbox("Select display option", 
-                                  ["Table Only", "Table and Bar Chart", "Table and Line Chart", "Table and Heatmap"])
-    
-    with st.spinner('Creating pivot table...'):
-        pivot_table = df.pivot_table(index=index, columns=columns, values=values, aggfunc='mean', fill_value=0, observed=True)
-        st.write(pivot_table)
-        
-        if display_option != "Table Only":
-            fig, ax = plt.subplots(figsize=(12, 8))
-            if display_option == "Table and Bar Chart":
-                pivot_table.plot(kind='bar', ax=ax)
-            elif display_option == "Table and Line Chart":
-                pivot_table.plot(kind='line', ax=ax)
-            elif display_option == "Table and Heatmap":
-                sns.heatmap(pivot_table, annot=True, cmap='YlGnBu', fmt='.2f', ax=ax)
-            plt.xticks(rotation=45, ha='right')
+        else:
+            st.write("Multiple features selected. Showing feature importance:")
+            feature_importance = pd.DataFrame({'Feature': features, 'Importance': abs(model.coef_)})
+            feature_importance = feature_importance.sort_values('Importance', ascending=True)
+            
+            # Adjust figure size based on the number of features
+            fig_height = max(6, len(features) * 0.4)
+            fig, ax = plt.subplots(figsize=(10, fig_height))
+            
+            sns.barplot(x='Importance', y='Feature', data=feature_importance, ax=ax)
+            ax.set_title('Feature Importance')
+            ax.set_xlabel('Absolute Coefficient Value')
             plt.tight_layout()
             st.pyplot(fig)
 
-def show_bar_plot(df):
-    st.write("This feature creates a bar plot to visualize the distribution of a categorical variable or the relationship between a categorical and a numeric variable.")
-    categorical_columns = df.select_dtypes(include=['object', 'category']).columns
-    numeric_columns = df.select_dtypes(include=['number']).columns
-    
-    x_axis = st.selectbox("Select categorical column for X-axis", categorical_columns)
-    y_axis = st.selectbox("Select numeric column for Y-axis (optional)", ['None'] + list(numeric_columns))
-    
-    with st.spinner('Generating bar plot...'):
-        fig, ax = plt.subplots(figsize=(12, 6))
-        if y_axis == 'None':
-            df[x_axis].value_counts().plot(kind='bar', ax=ax)
-            ax.set_ylabel('Count')
-        else:
-            df.groupby(x_axis, observed=True)[y_axis].mean().plot(kind='bar', ax=ax)
-            ax.set_ylabel(y_axis)
-        
-        ax.set_xlabel(x_axis)
-        plt.xticks(rotation=45, ha='right')
-        plt.tight_layout()
-        st.pyplot(fig)
-
-def perform_kmeans_clustering(df):
-    st.write("This feature performs K-means clustering on selected numeric features, grouping similar data points together.")
-    numeric_columns = df.select_dtypes(include=['number']).columns
-    features = st.multiselect("Select features for clustering", numeric_columns)
-    
-    if len(features) < 2:
-        st.warning("Please select at least two features for clustering.")
-        return
-    
-    n_clusters = st.slider("Select number of clusters", 2, 10, 3)
-    
-    with st.spinner('Performing K-means clustering...'):
-        X = df[features]
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        
-        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-        cluster_labels = kmeans.fit_predict(X_scaled)
-        
-        silhouette_avg = silhouette_score(X_scaled, cluster_labels)
-        st.write(f"Silhouette Score: {silhouette_avg:.2f}")
-        
-        if len(features) == 2:
-            fig, ax = plt.subplots()
-            scatter = ax.scatter(X[features[0]], X[features[1]], c=cluster_labels, cmap='viridis')
-            ax.set_xlabel(features[0])
-            ax.set_ylabel(features[1])
-            ax.set_title('K-means Clustering Results')
-            plt.colorbar(scatter)
-            st.pyplot(fig)
-        else:
-            st.write("Cluster centers:")
-            cluster_centers = scaler.inverse_transform(kmeans.cluster_centers_)
-            st.write(pd.DataFrame(cluster_centers, columns=features))
-
-def perform_pca(df):
-    st.write("This feature performs Principal Component Analysis (PCA) to reduce the dimensionality of your dataset while retaining as much variance as possible.")
-    numeric_columns = df.select_dtypes(include=['number']).columns
-    features = st.multiselect("Select features for PCA", numeric_columns)
-    
-    if len(features) < 2:
-        st.warning("Please select at least two features for PCA.")
-        return
-    
-    n_components = st.slider("Select number of components", 2, min(len(features), 10), 2)
-    
-    with st.spinner('Performing PCA...'):
-        X = df[features]
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        
-        pca = PCA(n_components=n_components)
-        X_pca = pca.fit_transform(X_scaled)
-        
-        explained_variance_ratio = pca.explained_variance_ratio_
-        cumulative_variance_ratio = np.cumsum(explained_variance_ratio)
-        
-        st.write("Explained variance ratio:")
-        st.write(pd.DataFrame({
-            'Component': range(1, n_components + 1),
-            'Explained Variance Ratio': explained_variance_ratio,
-            'Cumulative Variance Ratio': cumulative_variance_ratio
-        }).set_index('Component'))
-        
-        if n_components >= 2:
-            fig, ax = plt.subplots()
-            scatter = ax.scatter(X_pca[:, 0], X_pca[:, 1])
-            ax.set_xlabel('First Principal Component')
-            ax.set_ylabel('Second Principal Component')
-            ax.set_title('PCA Results')
-            st.pyplot(fig)
-
-def perform_hypothesis_test(df):
-    st.write("This feature allows you to perform various hypothesis tests to check for significant differences or relationships in your data.")
-
-    numeric_columns = df.select_dtypes(include=['number']).columns
-    categorical_columns = df.select_dtypes(include=['object', 'category']).columns
-    
-    test_type = st.selectbox("Select hypothesis test", ["T-test", "ANOVA", "Chi-square"])
-    
-    if test_type in ["T-test", "ANOVA"]:
-        variable = st.selectbox("Select numeric variable", numeric_columns)
-        group = st.selectbox("Select grouping variable", categorical_columns)
-        
-        with st.spinner('Performing hypothesis test...'):
-            groups = df[group].unique()
-            if test_type == "T-test" and len(groups) == 2:
-                group1 = df[df[group] == groups[0]][variable]
-                group2 = df[df[group] == groups[1]][variable]
-                t_stat, p_value = stats.ttest_ind(group1, group2)
-                st.write(f"T-statistic: {t_stat:.4f}")
-                st.write(f"P-value: {p_value:.4f}")
-            elif test_type == "ANOVA":
-                grouped_data = [df[df[group] == g][variable] for g in groups]
-                f_stat, p_value = stats.f_oneway(*grouped_data)
-                st.write(f"F-statistic: {f_stat:.4f}")
-                st.write(f"P-value: {p_value:.4f}")
-            else:
-                st.warning("T-test requires exactly two groups.")
-    elif test_type == "Chi-square":
-        variable1 = st.selectbox("Select first categorical variable", categorical_columns)
-        variable2 = st.selectbox("Select second categorical variable", [col for col in categorical_columns if col != variable1])
-        
-        with st.spinner('Performing hypothesis test...'):
-            contingency_table = pd.crosstab(df[variable1], df[variable2])
-            chi2, p_value, dof, expected = stats.chi2_contingency(contingency_table)
-            st.write(f"Chi-square statistic: {chi2:.4f}")
-            st.write(f"P-value: {p_value:.4f}")
-            st.write(f"Degrees of freedom: {dof}")
 
 def main():
     st.set_page_config(layout="wide")
@@ -344,12 +270,8 @@ def main():
                 ("Correlation Matrix", show_correlation_matrix),
                 ("Scatter Plot Matrix", show_scatter_plot_matrix),
                 ("Box Plot", show_box_plot),
-                ("Bar Plot", show_bar_plot),
                 ("Pivot Table", create_pivot_table),
                 ("Linear Regression", perform_linear_regression),
-                ("K-means Clustering", perform_kmeans_clustering),
-                ("Principal Component Analysis (PCA)", perform_pca),
-                ("Hypothesis Testing", perform_hypothesis_test)
             ]
 
             st.sidebar.title("Analysis Options")
