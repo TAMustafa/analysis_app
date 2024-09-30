@@ -15,7 +15,7 @@ from scipy import stats
 def load_data(file):
     try:
         if file.name.endswith('.csv'):
-            df = pd.read_csv(file, dtype=str)  # Read all columns as strings initially
+            df = pd.read_csv(file, dtype=str, encoding='iso-8859-1')  # Handle different encoding
         elif file.name.endswith('.xlsx'):
             df = pd.read_excel(file, dtype=str)  # Read all columns as strings initially
         else:
